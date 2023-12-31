@@ -128,3 +128,10 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+download/2023-11-24_cf47300e59.csv
+download/2023-11-30_56f1d204bc.csv
+download/2023-12-05_e39be26931.csv
+download/2023-12-20_46789a5a09.csv
+download/2023-12-21_be663523a8.csv
+download/2023-12-27_d55bbad588.csv
+package-lock.json
