@@ -1,24 +1,36 @@
 const express = require("express");
 const routes = express.Router();
-// const auth = require("../middleware/auth.js");
 const mongo = require("../db/mongo.js");
 
 // HOME
 routes.get("/", (req, res) => res.send("Bienvenue sur l'api"));
 
-// USER LOGIN AND REGISTER
-routes.use("/users", require("./users.js"));
+// REGISTER
 
-// AUTHENTIFACATE REQUEST
+// -------------------- AUTHENTIFICATE REQUEST ---------------------
 routes.use(require("../middleware/auth.js"));
 
-// AUTHENTIFACATE REQUEST
-routes.use(require("../middleware/update.js"));
+// Interact with a mongo
+routes.post("/", async (req, res) => {
+  // console.log(req.body);
+  req.response.data = await mongo(req.body);
+  // console.log(req.response.data);
+  req.response.ok = 
+    !req.response.data || 
+    req.response.data.acknowledged || 
+    req.response.data.length > 0 ? true : false;
+  req.response.message = req.response.ok || req.response.data.acknowledged ? 
+    "operation success" : 
+    "operation fail";
+  req.response.config = req.body
+  return res.json(req.response);
+});
 
 // GET USER
-routes.get("/auth", (req, res) => {
+routes.get(["/me", '/auth'], (req, res) => {
   res.json({
     ok: true,
+    message: 'authentifaction réussie !',
     user: req.user,
   });
 });
@@ -26,25 +38,38 @@ routes.get("/auth", (req, res) => {
 // OAuth
 routes.use("/oauth", require("./oauth.js"));
 
+// Google
+routes.use("/google", require("./google.js"));
+
 // Emailing
 routes.use("/email", require("./email.js"));
 
 // Download file from data
 routes.use("/download", require("./downloads.js"));
 
-// Interact with a mongo bdd
-routes.post("/", async (req, res) => {
-  const body = await req.body;
+// Get documents of mongo collection
+// routes.get("/mongo/:db/:collection", async (req, res) => {
+//   req.body.db = req.params.db 
+//   req.body.collection = req.params.collection 
+//   req.body.selector = req.query
 
-  req.response.data = await mongo(body);
-  req.response.ok = req.response.data.length > 0 ? true : false;
-  req.response.message = req.response.ok ? "" : "Aucune ressource trouvée";
-  return res.json(req.response);
-});
+//   req.response.data = await mongo({
+//     db: req.params.db,
+//     collection: req.params.collection,
+//     selector: req.query
+//   });
+//   req.response.ok = req.response.data.length > 0 ? true : false;
+//   req.response.message = req.response.ok ? "" : "Aucune ressource trouvée";
+//   return res.json(req.response);
+// });
 
-// Get all accessible ressources
+// Appointments
+routes.use("/appointments", require("./appointments.js"));
+
+// Schemas
 routes.use("/schemas", require("./schemas.js"));
-routes.use("/ressources", require("./ressources.js"));
+
+// Automnations
 routes.use("/automnations", require("./automnations.js"));
 
 // Contacts

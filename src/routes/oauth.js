@@ -3,7 +3,7 @@ const { google } = require("googleapis");
 const express = require("express");
 const router = express.Router();
 const mongo = require("../db/mongo.js");
-const axios = require("axios");
+// const axios = require("axios");
 
 const oauth2Client = new google.auth.OAuth2(
   "1077742480191-sel8t74e6ivuu19m9r8h3aar15fd65r1.apps.googleusercontent.com", // YOUR_CLIENT_ID
@@ -18,7 +18,7 @@ router.get("/google", async (req, res) => {
   // res.json(oauth2Client);
 
   if (!req.query.scopes)
-    req.query.scopes = "https://www.googleapis.com/auth/userinfo.email";
+    req.query.scopes = "https://www.googleapis.com/auth/contacts,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar";
 
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
@@ -56,5 +56,7 @@ router.get("/google/token", (req, res) => {
     });
   });
 });
+
+
 
 module.exports = router;

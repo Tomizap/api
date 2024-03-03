@@ -1,6 +1,9 @@
+const { get } = require("mongoose");
 const mongo = require("./mongo.js");
 const userSchema = require("./schemas/users.js");
 // const { getCababilitiesByRole } = require("./capabilities.js");
+
+// USER
 
 async function user_exist(user) {
   // console.log("user_exist");
@@ -52,28 +55,35 @@ async function user_registration(user) {
 }
 module.exports.user_registration = user_registration;
 
-async function user_login(user) {
-  await user;
-  if (!user.email) {
+async function user_login(credentials) {
+  await credentials;
+  // console.log(credentials);
+  if (!credentials.email) {
     console.log("Veuillez fournir une adresse mail");
     return {
       ok: false,
       message: "Veuillez fournir une adresse mail",
     };
   }
-  if (!user.password && !user.token) {
-    console.log("Veuillez fournir un moyen d'authentification");
+  if (!credentials.auth || (!credentials.auth.password && !credentials.auth.token)) {
+    console.log("Incorrect credentials");
     return {
       ok: false,
-      message: "Veuillez fournir un moyen d'authentification",
+      message: "Incorrect credentials",
+      data: credentials
     };
   }
-  const ue = await user_exist({ email: user.email });
+  const ue = await user_exist({ email: credentials.email });
   // console.log(ue);
   if (ue === true) {
-    return await mongo({ selector: { email: user.email } }).then((db_users) => {
+    // console.log('user exist');
+    return await mongo({ selector: { email: credentials.email } }).then((db_users) => {
+      if (typeof db_users === 'undefined') return {
+        ok: false,
+        message: "un problème est survenu"
+      }
       const db_user = db_users[0];
-      if (db_user.password === user.password || db_user.token === user.token) {
+      if (db_user.auth.password === credentials.auth.password || db_user.auth.token === credentials.auth.token) {
         return {
           ok: true,
           message: "authentification réussie",
@@ -91,8 +101,31 @@ async function user_login(user) {
     console.log("Cette utilisateur n'existe pas");
     return {
       ok: false,
-      message: "Cette utilisateur n'existe pas",
+      message: "Cette utilisateur n'existe pas: " + credentials.email,
     };
   }
 }
 module.exports.user_login = user_login;
+
+// DOCUMENTS
+
+// async function get_schema(type) {
+//   const schemas = await mongo({
+//     collection: "schemas",
+//     selector: {
+//       name: type
+//     }
+//   })
+//   return schemas
+
+//   if (schemas.length > 0) {
+//     const schema = schemas[0]
+//     for (const key in object) {
+
+//     }
+//   } else {
+
+//   }
+
+// }
+// get_schema('company').then(r => console.log(r))

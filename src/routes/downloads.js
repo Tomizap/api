@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { user_registration, user_login } = require("../db/functions.js");
+// const { user_registration, user_login } = require("../db/functions.js");
 
 router.use("/", express.static("download"));
 router.post("/", async (req, res) => {

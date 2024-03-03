@@ -1,92 +1,110 @@
 const express = require("express");
 const mongo = require("../db/mongo");
 const router = express.Router();
-// const { ObjectId } = require("mongodb");
-const { google } = require("googleapis");
-const crypto = require("crypto");
 const fs = require("fs");
-const { ObjectId } = require("mongodb");
+// const { ObjectId } = require("mongodb");
+const { v4: uuidv4 } = require('uuid');
+const api = require('../api.js')
 
-GOOGLE_CLIENT_ID =
-  "1077742480191-sel8t74e6ivuu19m9r8h3aar15fd65r1.apps.googleusercontent.com";
+GOOGLE_CLIENT_ID = "1077742480191-sel8t74e6ivuu19m9r8h3aar15fd65r1.apps.googleusercontent.com";
 GOOGLE_CLIENT_SECRET = "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";
 
-router.use("/companies", async (req, res, next) => {
-  req.companies = await mongo({
-    db: "contacts",
-    collection: "companies",
+// ------------------------------ ITEMS ---------------------------
+router.get('/', async (req, res) => {
+  data = {};
+
+  for (const contact_type of [
+    'companies',
+    'profils'
+  ]) {
+    data[contact_type] = await mongo({
+      db: 'contacts',
+      collection: contact_type,
+      limit: req.query.limit,
+      page: req.query.page
+    });
+  }
+
+  res.json({
+    ok: true,
+    data
   });
+})
+
+// CLEAR ALL ITEMS
+router.get('/clear', (req, res) => {
+  res.json()
+})
+
+// SPECIFY ITEM TYPE
+router.use("/:type", async (req, res, next) => {
+  req.mongoConfig = {
+    db: "contacts",
+    collection: req.params.type,
+    limit: req.query.limit,
+    page: req.query.page
+  }
+  // req.items = await mongo(req.mongoConfig);
+  req.items = []
+  req.schema = await api.tools.get_schema(req.params.type)
+  if (req.schema !== null) {
+    req.schema = req.schema
+  } else {
+    return res.json({
+      ok: false,
+      message: `${req.params.type} has no schema`
+    })
+  }
   next();
 });
 
-// const companies = require("../../data/contacts.companies.json");
-// console.log("le");
-// console.log(companies);
-
-router.get("/companies", async (req, res) => {
-  res.json(req.companies);
+// GET ITEMS
+router.get("/:type", async (req, res) => {
+  const items = await mongo({
+    db: "contacts",
+    collection: req.params.type,
+    limit: req.query.limit,
+    page: req.query.page
+  })
+  res.json(items);
 });
 
-// CREATE A GOOGLE SPREADSHEET
-async function createSpreadsheet(sheets, title) {
-  const response = await sheets.spreadsheets.create({
-    resource: {
-      properties: {
-        title: title,
-      },
-    },
-  });
-  return response.data.spreadsheetId;
-}
-async function writeToSpreadsheet(sheets, spreadsheetId, data) {
-  let values = data.map((obj) => Object.values(obj));
-  values.unshift(Object.keys(data[0]));
+// POST ITEM
+router.post('/:type', async (req, res) => {
+  const contact = await req.body
+  res.json(await api.contacts.add_contact(contact, req.schema))
+})
 
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: spreadsheetId,
-    range: "A1", // Commence à la première cellule
-    valueInputOption: "USER_ENTERED",
-    resource: {
-      values: values,
-    },
-  });
-}
-router.get("/companies/GoogleSpreadSheet", async (req, res) => {
-  const oauth2Client = new google.auth.OAuth2(
-    GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET
-  );
-  oauth2Client.setCredentials({
-    refresh_token: req.user.auth.google.refresh_token,
-  });
-  const sheets = google.sheets({ version: "v4", auth: oauth2Client });
-
-  const fileName =
-    // req.automnation.name.replace(/[\/:*?"<>|+\s]/gm, "_") +
-    // "_" +
-    new Date(Date.now()).toISOString().split("T")[0] +
-    "T" +
-    new Date(Date.now()).getHours() +
-    ":" +
-    new Date(Date.now()).getMinutes();
-
-  const spreadsheetId = await createSpreadsheet(sheets, fileName);
-  // const companies = await req.companies
-  var companies = require("../../data/contacts.companies.json");
-  if (companies.length > 9999) companies = companies.slice(0, 100);
-  await writeToSpreadsheet(sheets, spreadsheetId, companies || [{}]);
-
-  // console.log(`Feuille de calcul créée avec l'ID : ${spreadsheetId}`);
-
-  res.redirect("https://docs.google.com/spreadsheets/d/" + spreadsheetId);
+// OPTION COMPANIES
+router.options("/:type", async (req, res) => {
+  res.json(req.schema)
 });
 
-// DOWNLOAD CSV
+// ------------------------------ DOWNLOAD -----------------------------
+router.get("/:type/download", async (req, res) => {
+  res.redirect(req.path + '/csv')
+})
+
+// CSV
 function createCsvDowload(data, fileName) {
-  csv = Object.keys(data[0]).join("|") + "\n";
-  csv += data.map((row) => Object.values(row).join("|")).join("\n");
+
+  // mapping
+  const mappedData = []
+  const schema = data[0]
+  for (const item of data) {
+    const mappedItem = {}
+    for (const field in schema) if (field.context !== "internal") {
+      mappedItem[field] = item[field] || ''
+    }
+    mappedData.push(mappedItem)
+  }
+
+  console.log(mappedData.length);
+
+  csv = Object.keys(mappedData[0]).join("|") + "\n";
+  csv += mappedData.map((row) => Object.values(row).join("|")).join("\n");
   const filePath =
-    "C:\\Users\\Conta\\Desktop\\CODE\\api.tom-zapico.com\\download\\" +
+    "C:\\Users\\zapto\\Desktop\\api\\download\\" +
     fileName +
     ".csv";
   fs.writeFile(filePath, csv, (err) => {
@@ -96,75 +114,219 @@ function createCsvDowload(data, fileName) {
     console.log(`Le fichier ${filePath} a été créé avec succès!`);
   });
   return {
-    download_url: "http://localhost:7000/download/" + fileName,
+    download_url: "/download/" + fileName,
   };
 }
-// createCsvDowload(
-//   require("../../data/contacts.companies.json"),
-//   "testing_export"
-// );
-router.get("/companies/download", async (req, res) => {
+router.get("/:type/download/csv", async (req, res) => {
+  const data = await mongo({
+    db: "contacts",
+    collection: req.params.type,
+    limit: req.query.limit || 99999,
+    page: req.query.page
+  })
   const fileName =
-    // req.automnation.name.replace(/[\/:*?"<>|+\s]/gm) +
-    // "_" +
     new Date(Date.now()).toISOString().split("T")[0] +
     "_" +
-    crypto
-      .randomBytes(Math.ceil(10 / 2))
-      .toString("hex") // Convertit les octets en une chaîne hexadécimale
-      .slice(0, 10); // Retourne la longueur souhaitée;
-  // const companies = await req.companies
-  var companies = require("../../data/contacts.companies.json");
+    uuidv4()
   createCsvDowload(
-    companies,
+    data,
     fileName.replace(/[\\/:*?"<>|+]/g, "-").replace(" ", "")
   );
   res.redirect(`/download/${fileName}.csv`);
 });
 
-async function delete_duplicate(config = {}) {
-  const mongo_db = config.db || "contacts";
-  const mongo_collection = config.collection || "companies";
+// JSON
 
-  await mongo({
-    db: mongo_db,
-    collection: mongo_collection,
-  }).then(async (items) => {
-    for (let index = 0; index < items.length; index++) {
-      console.log("item: " + index);
-      const item = items[index];
+// ------------------------------- IMPORT -------------------------------
 
-      const duplicates = await mongo({
-        db: mongo_db,
-        collection: mongo_collection,
-        selector: {
-          $or: [
-            { SOURCE_URL: item.SOURCE_URL },
-            { COMPANY_PHONE: item.COMPANY_PHONE },
-          ],
-        },
-      });
-      if (duplicates.length > 1) {
-        console.log("duplicates found: " + duplicates.slice(1).length);
-        for (const duplicate of duplicates.slice(1)) {
-          await mongo({
-            db: mongo_db,
-            collection: mongo_collection,
-            action: "delete",
-            selector: {
-              $or: [{ _id: new ObjectId(duplicate._id) }],
-            },
-          }).then((r) => {
-            console.log(r);
-          });
-        }
-      }
-    }
-  });
-}
-router.get("/companies/delete_duplicate", async (req, res) => {
-  await delete_duplicate();
-  res.json("ok");
+// SPREADSHEET
+router.get('/:type/import/spreadsheet/:id/:sheetname', async (req, res) => {
+  const items = await req.api.google.spreadsheet.get(req.params.id, req.params.sheetname, req.oauth2Client);
+  console.log(items.length + ' ' + req.params.type);
+  for (const item of items) {
+    console.log(`${req.params.type} ${items.indexOf(item)}`);
+    if (item.NAME === '' || !item.NAME || !item.PHONE || item.PHONE === "") continue
+    // console.log(item);
+    console.log(
+      await api.contacts.add_contact(item, req.schema)
+    ); 
+  }
+  res.json(items)
+})
+
+// CSV
+
+// JSON
+
+// -------------------------------- CLEAR -------------------------------
+
+router.get("/:type/clear", async (req, res) => {
+
+  const schemas = await mongo({collection: 'schemas' })
+  const schema = schemas.find(s => s.type === req.params.type)
+
+  items = await mongo({
+    db: "contacts",
+    collection: req.params.type,
+    limit: req.query.limit || 99999
+  })  
+  console.log('items ', items.length);
+
+  items = await api.tools.clear_items(items, schema)
+
+  console.log('end clear.');
+  // return items
+  res.json({ok: true, data: items});
 });
+
+// ------------------------------- ITEM ------------------------------ 
+
+// FOCUS
+
+router.use('/:type/:id', async (req, res, next) => {
+  const getting = await mongo({
+    db: 'contacts',
+    collection: req.params.type,
+    selector: {_id: req.params.id}
+  })
+  if (getting.length > 0) {
+    req.item = getting[0]
+  } else {
+    return res.status(404).json({ok:false, 'message': 'no item'})
+  }
+  next()
+})
+
+// GET
+router.get("/:type/:id", (req, res) => {
+  res.json(req.item);
+});
+
+// EDIT
+router.put("/:type/:id", async (req, res) => {
+  req.mongoConfig.action = 'edit'
+  req.mongoConfig.updator = await req.body
+  update = await mongo(req.mongoConfig)
+  res.json(update)
+});
+
+// OPTIONS
+router.options('/:type/:id/add/:subtype', (req, res) => {
+  res.json(req.schema)
+})
+
+// ADD SUBITEM
+router.post('/:type/:id/add/:subtype', async (req, res) => {
+  // console.log("ADD SUBITEM");
+
+  if (!req.item[req.params.subtype]) {
+    return res.json({
+      ok: false,
+      message: `${req.params.subtype} is not a property of ${req.params.type}`
+    })
+  }
+
+  const schema = await api.tools.get_schema(req.schema.fields[req.params.subtype].type)
+  if (schema === null) {
+    return res.json({
+      ok: false,
+      message: `${req.params.subtype} has no schema`
+    })
+  }
+  // console.log('schema', schema);
+
+  const creating = await api.contacts.add_contact(await req.body, schema)
+  // console.log("creating", creating);
+
+  if (creating.ok === true) {
+
+    // console.log(creating.data._id.toString());
+    // console.log({[req.params.subtype]: creating.data._id.toString()});
+
+    const updating = await mongo({
+      db: "contacts",
+      collection: req.params.type,
+      action: "edit",
+      selector: {_id: req.params.id},
+      updator: {$push: {[req.params.subtype]: creating.data._id.toString()}}
+    })
+    // console.log("updating", updating);
+    res.json({
+      ok: updating.acknowledged,
+      message: `${req.params.subtype} has been created and added to ${req.params.type}`
+    })
+
+  } else {
+
+    console.log("no creating: ", creating.message);
+    if (creating.data._id) {
+      res.redirect('/contacts/' + req.params.type + '/add/' + req.params.subtype + '/' + creating.data._id)
+    } else {
+      res.json({
+        ok: false,
+        message: "error // ADD SUBITEM" 
+      })
+    }
+
+  }
+})
+router.get('/:type/:id/add/:subtype/:subitemid', async (req, res) => {
+  if (!req.item[req.params.subtype]) {
+    return res.json({
+      ok: false,
+      message: `${subtype} is not a property of ${req.params.type}`
+    })
+  }
+  var subitem = await mongo({
+    db: "contact",
+    collection: req.params.subtype,
+    selector: {uuid: req.params.subitemid}
+  }) 
+  if (subitem.length === 0) {
+    return res.json({
+      ok: false,
+      message: `subitem doesn't exist`
+    })
+  }
+  subitem = subitem[0]
+
+  const pushing = await mongo({
+    db: "contact",
+    collection: req.params.type,
+    action: "edit",
+    selector: {uuid: req.item._uuid},
+    updator: { $push: {[req.params.subtype]: req.params.subitemid} }
+  })
+  if (pushing.acknowledged === true) {
+    res.json({
+      ok: true
+    })
+  } else {
+    res.json({
+      ok: false,
+      message: ""
+    })
+  }
+})
+
+// ------------------------------- COMPANY ------------------------------
+
+// CV PROPOSAL
+router.get('/:type/:id/cvproposal', (req, res) => {
+  county = req.query.county
+  job = req.query.job
+
+  const appliers = mongo({
+    db: 'contacts',
+    collection: "profils",
+    selector: {ROLE: "applier"}
+  })
+
+  res.json({
+    ok: true
+  })
+})
+
+// SCHEDULE APPOINTMENT
 
 module.exports = router;
