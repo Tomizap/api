@@ -4,8 +4,8 @@
   "description": "nodejs api",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon server.js",
-    "clear": "node src/routes/contacts"
+    "dev": "nodemon index.js",
+    "start": "node index.js"
   },
   "keywords": [],
   "author": "",
