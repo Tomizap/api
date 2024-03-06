@@ -21,21 +21,20 @@ routes.post('/stripe/webhook', express.raw({type: 'application/json'}), (request
     return;
   }
 
+  console.log('event.data.object', event.data.object);
+
   // Handle the event
   switch (event.type) {
     case 'checkout.session.completed':
       const checkoutSessionCompleted = event.data.object;
-      console.log('checkoutSessionCompleted', checkoutSessionCompleted);
       // Then define and call a function to handle the event checkout.session.completed
       break;
     case 'customer.subscription.deleted':
       const customerSubscriptionDeleted = event.data.object;
-      console.log('customerSubscriptionDeleted', customerSubscriptionDeleted);
       // Then define and call a function to handle the event customer.subscription.deleted
       break;
     case 'customer.subscription.updated':
       const customerSubscriptionUpdated = event.data.object;
-      console.log('customerSubscriptionUpdated', customerSubscriptionUpdated);
       // Then define and call a function to handle the event customer.subscription.updated
       break;
     // ... handle other event types
@@ -46,7 +45,7 @@ routes.post('/stripe/webhook', express.raw({type: 'application/json'}), (request
   // Return a 200 response to acknowledge receipt of the event
   response.send();
 });
-routes.get('/subscription-checkout', async (req, res) => {
+routes.get('/stripe/subscriptions/checkout', async (req, res) => {
     const redirect_url = req.query.redirect_url || (`https://${req.hostname}${req.originalUrl}`)
     const price = req.query.price || 'price_1Or7VELoq0Tuxdi9J7MUe3tf'
     console.log(redirect_url);
@@ -65,7 +64,7 @@ routes.get('/subscription-checkout', async (req, res) => {
 
     res.redirect(303, session.url);
 });
-routes.get('/subscription/success', (req, res) => {
+routes.get('/stripe/subscriptions/success', (req, res) => {
     res.send('ok')
 })
 
