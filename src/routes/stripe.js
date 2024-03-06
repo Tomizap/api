@@ -4,22 +4,32 @@ const router = express.Router();
 
 const stripe = require('stripe')('sk_test_51HuID2Loq0Tuxdi9IYWFKRZWcTzEEize0kXOCrdEmPw7pVs6r7BPVAOY1MP4H5YNByq7CGv8CODyjExaTjabcBuv00WePDPJuU');
 
-router.get('/create-checkout-session', async (req, res) => {
+router.get('/', (req, res) => {
+    res.send('stripe')
+})
+
+router.get('/subscription-checkout', async (req, res) => {
+    const redirect_url = req.query.redirect_url || req.originalUrl || "https://tom-zapico.com"
+    const price = req.query.price || 'price_1Or7VELoq0Tuxdi9J7MUe3tf'
     const session = await stripe.checkout.sessions.create({
         line_items: [
         {
             // Provide the exact Price ID (for example, pr_1234) of the product you want to sell
-            price: req.query.price || 'price_1Or7VELoq0Tuxdi9J7MUe3tf',
+            price,
             quantity: 1,
         },
         ],
         mode: 'subscription',
-        success_url: `${YOUR_DOMAIN}/success.html?redirect_url=${req.query.redirect_url || req.originalUrl}`,
-        cancel_url: `${YOUR_DOMAIN}/cancel.html`,
+        success_url: `https://api.tom-zapico.com/success?redirect_url=${redirect_url}`,
+        cancel_url: req.originalUrl || "https://tom-zapico.com",
     });
 
     res.redirect(303, session.url);
 });
+
+router.get('/subscription/success', (req, res) => {
+    res.send('ok')
+})
 
 // This is your Stripe CLI webhook secret for testing your endpoint locally.
 // const endpointSecret = "whsec_dkGLqmpk1l3SE9Tbq65Ju6cRDH6svswk";
