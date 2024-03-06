@@ -71,7 +71,8 @@ routes.get('/subscription-checkout', async (req, res) => {
         cancel_url: redirect_url,
     });
 
-    res.redirect(303, session.url);
+    // res.redirect(303, session.url);
+    res.json(session);
 });
 
 // Appointments
