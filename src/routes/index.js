@@ -48,32 +48,7 @@ routes.use("/email", require("./email.js"));
 routes.use("/download", require("./downloads.js"));
 
 // Stripe
-const stripe = require('stripe')('sk_test_51HuID2Loq0Tuxdi9IYWFKRZWcTzEEize0kXOCrdEmPw7pVs6r7BPVAOY1MP4H5YNByq7CGv8CODyjExaTjabcBuv00WePDPJuU');
-
-routes.get('/stripe', (req, res) => {
-    res.send('stripe')
-})
-
-routes.get('/subscription-checkout', async (req, res) => {
-    const redirect_url = req.query.redirect_url || (`https://${req.hostname}${req.originalUrl}`)
-    const price = req.query.price || 'price_1Or7VELoq0Tuxdi9J7MUe3tf'
-    console.log(redirect_url);
-    const session = await stripe.checkout.sessions.create({
-        line_items: [
-        {
-            // Provide the exact Price ID (for example, pr_1234) of the product you want to sell
-            price,
-            quantity: 1,
-        },
-        ],
-        mode: 'subscription',
-        success_url: `https://api.tom-zapico.com/success?redirect_url=${redirect_url}`,
-        cancel_url: redirect_url,
-    });
-
-    // res.redirect(303, session.url);
-    res.json(session);
-});
+routes.use("/stripe", require("./stripe.js"));
 
 // Appointments
 // routes.use("/appointments", require("./appointments.js"));
