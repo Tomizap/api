@@ -9,8 +9,9 @@ router.get('/', (req, res) => {
 })
 
 router.get('/subscription-checkout', async (req, res) => {
-    const redirect_url = req.query.redirect_url || req.originalUrl || "https://tom-zapico.com"
+    const redirect_url = req.query.redirect_url || (`https://${req.hostname}${req.originalUrl}`)
     const price = req.query.price || 'price_1Or7VELoq0Tuxdi9J7MUe3tf'
+    console.log(redirect_url);
     const session = await stripe.checkout.sessions.create({
         line_items: [
         {
@@ -21,7 +22,7 @@ router.get('/subscription-checkout', async (req, res) => {
         ],
         mode: 'subscription',
         success_url: `https://api.tom-zapico.com/success?redirect_url=${redirect_url}`,
-        cancel_url: req.originalUrl || "https://tom-zapico.com",
+        cancel_url: redirect_url,
     });
 
     res.redirect(303, session.url);
