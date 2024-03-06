@@ -1,5 +1,5 @@
 const express = require("express");
-const mongo = require("../db/mongo");
+// const mongo = require("../db/mongo");
 const router = express.Router();
 
 const stripe = require('stripe')('sk_test_51HuID2Loq0Tuxdi9IYWFKRZWcTzEEize0kXOCrdEmPw7pVs6r7BPVAOY1MP4H5YNByq7CGv8CODyjExaTjabcBuv00WePDPJuU');
