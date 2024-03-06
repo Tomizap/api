@@ -50,9 +50,9 @@ routes.use("/download", require("./downloads.js"));
 // Stripe
 const stripe = require('stripe')('sk_test_51HuID2Loq0Tuxdi9IYWFKRZWcTzEEize0kXOCrdEmPw7pVs6r7BPVAOY1MP4H5YNByq7CGv8CODyjExaTjabcBuv00WePDPJuU');
 
-// routes.get('/', (req, res) => {
-//     res.send('stripe')
-// })
+routes.get('/stripe', (req, res) => {
+    res.send('stripe')
+})
 
 routes.get('/subscription-checkout', async (req, res) => {
     const redirect_url = req.query.redirect_url || (`https://${req.hostname}${req.originalUrl}`)
