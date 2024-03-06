@@ -47,6 +47,9 @@ routes.use("/email", require("./email.js"));
 // Download file from data
 routes.use("/download", require("./downloads.js"));
 
+// Stripe
+routes.use("/stripe", require("./stripes.js"));
+
 // Appointments
 // routes.use("/appointments", require("./appointments.js"));
 
