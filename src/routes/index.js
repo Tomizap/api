@@ -58,22 +58,12 @@ routes.get('/stripe/subscriptions/checkout', async (req, res) => {
         },
         ],
         mode: 'subscription',
-        success_url: `https://api.tom-zapico.com/stripe/subscriptions/success?redirect_url=${redirect_url}`,
+        success_url: redirect_url,
         cancel_url: redirect_url,
     });
 
     res.redirect(303, session.url);
 });
-routes.get('/stripe/subscriptions/success', (req, res) => {
-    res.send(`
-      <h1>Votre abonnement a bien été prise en compte</h1>
-      <p>Vous allez être redirigé vers <a href="${req.query.redirect_url}">${req.query.redirect_url}</a></p>
-      <script>setTimeout(() => {document.location.assig("${req.query.redirect_url}")}, 5000)</script>
-    `)
-})
-routes.get('/stripe/subscriptions/check', (req, res) => {
-    res.send('ok')
-})
 
 // ------------------------------------------------------------------------------------------
 // -------------------------------- AUTHENTIFICATE REQUEST ----------------------------------
