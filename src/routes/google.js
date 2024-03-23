@@ -1,22 +1,6 @@
 const express = require("express");
 const router = express.Router();
-
-const { google } = require("googleapis");
 const nodemailer = require("nodemailer");
-
-// GOOGLE_CLIENT_ID = "1077742480191-sel8t74e6ivuu19m9r8h3aar15fd65r1.apps.googleusercontent.com";
-// GOOGLE_CLIENT_SECRET = "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";
-
-// router.use(async (req, res, next) => {
-//   req.oauth2Client = new google.auth.OAuth2(
-//     GOOGLE_CLIENT_ID,
-//     GOOGLE_CLIENT_SECRET
-//   );
-//   await req.oauth2Client.setCredentials({
-//     refresh_token: req.user.auth.google.refresh_token,
-//   });
-//   next()
-// })
 
 // ------------------------------- DRIVE --------------------------
 
@@ -28,59 +12,81 @@ router.get('/drive/get/file/:id', (req, res) => {
 // ------------------------------- SPREADSHEET --------------------------
 
 // GET GOOGLE SPREADSHEET
-router.get('/spreadsheet/:id', async (req, res) => {
-  const data = await req.api.google.spreadsheet.get(req.params.id, req.query.sheetname || "Feuille 1", req.oauth2Client);
+router.get('/spreadsheet/:id/:sheetname', async (req, res) => {
+  const data = await req.api.google.spreadsheet.get(req.params.id, req.params.sheetname, req.google.sheets);
+  res.json(data)
+})
+
+// RICH CONTACTS
+router.get('/spreadsheet/:id/:sheetname/rich', async (req, res) => {
+  const data = await req.api.google.spreadsheet.get(req.params.id, req.params.sheetname, req.google.sheets);
+  const columns = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"]
+  const fields = Object.keys(data[0])
+  const columMapping = {}
+  for (const field of fields) {
+    columMapping[field] = columns[fields.indexOf(field)]
+  }
+  for await (var item of data) {
+    console.log('item', data.indexOf(item));
+    const rowIndex = data.indexOf(item)+2
+    console.log(rowIndex);
+    const itemStringified = JSON.stringify(item)
+    item = await req.api.contacts.rich(item)
+    if (JSON.stringify(item) === itemStringified) {
+      console.log('no changes');
+      continue
+    } 
+    // console.log("itemStringified", itemStringified);
+    // console.log("item", item);
+    const range = req.params.sheetname + "!A" + (rowIndex)
+    try {
+      await req.google.sheets.spreadsheets.values.update({
+        spreadsheetId: process.env.GOOGLE_FILE_BDD_ID,
+        range,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [Object.values(item)],
+        },
+      });
+      console.log(`row ${rowIndex} updated !`);
+    } catch (error) {
+      console.log(error);
+      continue
+    }
+    // break
+  }
   res.json(data)
 })
 
 // ------------------------------- GMAIL --------------------------
 
 // SEND GMAIL
-router.get('/gmail/send', async (req, res) => {
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      type: "OAuth2",
-      user: req.user.email,
-      clientId: GOOGLE_CLIENT_ID,
-      clientSecret: GOOGLE_CLIENT_SECRET,
-      refreshToken: req.user.auth.google.refresh_token,
-      // accessToken: accessToken.token,
-    },
-  });
-  
-  const mailOptions = {
-    from: `Expéditeur <${req.user.email}>`,
-    to: req.body.to || "zaptom.pro@gmail.com",
-    subject: req.body.subject || "Sujet",
-    html: req.body.html || "N'oublie jamais",
-    text: req.body.text || "Contenu de l'e-mail en texte",
-  };
-  
-  res.json(await transporter.sendMail(mailOptions));
-})
-
-// SYNC SPREADSHEET WITH GOOGLE CONTACTS
-async function syncSpreadSheetWithGoogleContacts(spreadsheetId, sheetName, mapping, auth) {
-  const data = await getSpreadsheetData(spreadsheetId, sheetName, auth)
-  const contacts = [] 
-  await data.forEach(contact => {
-    contacts.push({
-      names: [{ givenName: contact[mapping.givenName], familyName: contact[mapping.familyName] }],
-      emailAddresses: [{ value: contact[mapping.emailAddresses] }],
-      phoneNumbers: [{ value: contact[mapping.phoneNumbers] }],
-      addresses: [{ streetAddress: contact[mapping.addresses] }],
-    })
-  }) 
-  return await createContacts(contacts, auth)
-}
-router.get('/spreadsheet/:id/syncGoogleContacts', async (req, res) => {
-  res.json(await syncSpreadSheetWithGoogleContacts(req.params.id, req.query.sheetname || 'Feuille 1', {
-    givenName: "PRENOM",
-    familyName: "NOM",
-    phoneNumbers: 'TELEPHONE',
-    emailAddresses: 'MAIL'
-  }, req.oauth2Client))
+router.post('/gmail/send', async (req, res) => {
+  return res.json(await req.api.google.gmail.message.send(await req.body, req.google.gmail))
+  // const transporter = nodemailer.createTransport({
+  //   service: "gmail",
+  //   auth: {
+  //     type: "OAuth2",
+  //     user: req.user.email,
+  //     clientId: GOOGLE_CLIENT_ID,
+  //     clientSecret: GOOGLE_CLIENT_SECRET,
+  //     refreshToken: req.user.auth.google.refresh_token,
+  //   },
+  // });
+  // const mailOptions = {
+  //   from: `Tom ZAPICO <${req.user.email}>`,
+  //   to: req.body.to || "zaptom.pro@gmail.com",
+  //   subject: req.body.subject || "Service d'accompagnement gratuit pour recrutement en alternance",
+  //   html: req.body.html || "",
+  //   text: req.body.text || "",
+  //   attachments: req.body.attachments || [],
+  // };
+  // const emailing = await transporter.sendMail(mailOptions)
+  // res.json({
+  //     ok: true,
+  //     message: "email sent successfully to " + mailOptions.to,
+  //     data: emailing
+  // });
 })
 
 // ------------------------------- CALENDAR --------------------------
@@ -128,58 +134,27 @@ router.post('/people', async (req, res) => {
   res.json(await req.api.google.contacts.create(req.body.contacts, req.oauth2Client))
 })
 
-// ------------ CREATE GOOGLE SPREADSHEET -------------
-// async function createSpreadsheet(sheets, title) {
-//   const response = await sheets.spreadsheets.create({
-//     resource: {
-//       properties: {
-//         title: title,
-//       },
-//     },
-//   });
-//   return response.data.spreadsheetId;
-// }
-// async function writeToSpreadsheet(sheets, spreadsheetId, data) {
-//   let values = data.map((obj) => Object.values(obj));
-//   values.unshift(Object.keys(data[0]));
-
-//   await sheets.spreadsheets.values.update({
-//     spreadsheetId: spreadsheetId,
-//     range: "A1", // Commence à la première cellule
-//     valueInputOption: "USER_ENTERED",
-//     resource: {
-//       values: values,
-//     },
-//   });
-// }
-// router.get("/:type/GoogleSpreadSheet", async (req, res) => {
-//   const oauth2Client = new google.auth.OAuth2(
-//     GOOGLE_CLIENT_ID,
-//     GOOGLE_CLIENT_SECRET
-//   );
-//   oauth2Client.setCredentials({
-//     refresh_token: req.user.auth.google.refresh_token,
-//   });
-//   const sheets = google.sheets({ version: "v4", auth: oauth2Client });
-
-//   const fileName =
-//     // req.automnation.name.replace(/[\/:*?"<>|+\s]/gm, "_") +
-//     // "_" +
-//     new Date(Date.now()).toISOString().split("T")[0] +
-//     "T" +
-//     new Date(Date.now()).getHours() +
-//     ":" +
-//     new Date(Date.now()).getMinutes();
-
-//   const spreadsheetId = await createSpreadsheet(sheets, fileName);
-//   // const companies = await req.items
-//   var companies = require("../../data/contacts.companies.json");
-//   if (companies.length > 9999) companies = companies.slice(0, 100);
-//   await writeToSpreadsheet(sheets, spreadsheetId, companies || [{}]);
-
-//   // console.log(`Feuille de calcul créée avec l'ID : ${spreadsheetId}`);
-
-//   res.redirect("https://docs.google.com/spreadsheets/d/" + spreadsheetId);
-// });
+// SYNC SPREADSHEET WITH GOOGLE CONTACTS
+async function syncSpreadSheetWithGoogleContacts(spreadsheetId, sheetName, mapping, auth) {
+  const data = await getSpreadsheetData(spreadsheetId, sheetName, auth)
+  const contacts = [] 
+  await data.forEach(contact => {
+    contacts.push({
+      names: [{ givenName: contact[mapping.givenName], familyName: contact[mapping.familyName] }],
+      emailAddresses: [{ value: contact[mapping.emailAddresses] }],
+      phoneNumbers: [{ value: contact[mapping.phoneNumbers] }],
+      addresses: [{ streetAddress: contact[mapping.addresses] }],
+    })
+  }) 
+  return await createContacts(contacts, auth)
+}
+router.get('/spreadsheet/:id/syncGoogleContacts', async (req, res) => {
+  res.json(await syncSpreadSheetWithGoogleContacts(req.params.id, req.query.sheetname || 'Feuille 1', {
+    givenName: "PRENOM",
+    familyName: "NOM",
+    phoneNumbers: 'TELEPHONE',
+    emailAddresses: 'MAIL'
+  }, req.oauth2Client))
+})
 
 module.exports = router

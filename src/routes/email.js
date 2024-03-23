@@ -42,7 +42,7 @@ router.post("/send", async (req, res) => {
         from: `Expéditeur <${req.user.email}>`,
         to: req.body.to || "zaptom.pro@gmail.com",
         subject: req.body.subject || "Sujet",
-        html: req.body.html || "N'oublie jamais",
+        html: req.body.html || "Contenu de l'e-mail en html",
         text: req.body.text || "Contenu de l'e-mail en texte",
       };
 

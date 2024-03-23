@@ -36,6 +36,11 @@ router.get('/clear', (req, res) => {
   res.json()
 })
 
+// RICH CONTACTS
+router.get('/', (req, res) => {
+  res.json()
+})
+
 // SPECIFY ITEM TYPE
 router.use("/:type", async (req, res, next) => {
   req.mongoConfig = {
@@ -79,6 +84,28 @@ router.post('/:type', async (req, res) => {
 router.options("/:type", async (req, res) => {
   res.json(req.schema)
 });
+
+// RICH CONTACT COLLECTION
+// router.get('/:type/rich', async (req, res) => {
+//   const items = await mongo({
+//     db: "contacts",
+//     collection: req.params.type,
+//     limit: req.query.limit,
+//     page: req.query.page
+//   })
+//   for (const item of items) {
+//     if (item.LOCATION !== "") {
+//       const regex = /\d{5}/g
+//       let match
+//       if ((match = regex.exec(chaine)) !== null) {
+//         var POSTCODE = match[0] 
+//         if (item.POSTCODE === "") {
+
+//         }
+//       }
+//     }
+//   }
+// })
 
 // ------------------------------ DOWNLOAD -----------------------------
 router.get("/:type/download", async (req, res) => {
@@ -142,7 +169,7 @@ router.get("/:type/download/csv", async (req, res) => {
 // SPREADSHEET
 router.get('/:type/import/spreadsheet/:id/:sheetname', async (req, res) => {
   const items = await req.api.google.spreadsheet.get(req.params.id, req.params.sheetname, req.oauth2Client);
-  console.log(items.length + ' ' + req.params.type);
+  console.log('importing contacts');
   for (const item of items) {
     console.log(`${req.params.type} ${items.indexOf(item)}`);
     if (item.NAME === '' || !item.NAME || !item.PHONE || item.PHONE === "") continue
@@ -162,8 +189,8 @@ router.get('/:type/import/spreadsheet/:id/:sheetname', async (req, res) => {
 
 router.get("/:type/clear", async (req, res) => {
 
-  const schemas = await mongo({collection: 'schemas' })
-  const schema = schemas.find(s => s.type === req.params.type)
+  // const schemas = await mongo({collection: 'schemas' })
+  // const schema = schemas.find(s => s.type === req.params.type)
 
   items = await mongo({
     db: "contacts",
@@ -172,7 +199,7 @@ router.get("/:type/clear", async (req, res) => {
   })  
   console.log('items ', items.length);
 
-  items = await api.tools.clear_items(items, schema)
+  items = await api.tools.clear_items(items)
 
   console.log('end clear.');
   // return items
@@ -182,7 +209,6 @@ router.get("/:type/clear", async (req, res) => {
 // ------------------------------- ITEM ------------------------------ 
 
 // FOCUS
-
 router.use('/:type/:id', async (req, res, next) => {
   const getting = await mongo({
     db: 'contacts',
@@ -233,17 +259,14 @@ router.post('/:type/:id/add/:subtype', async (req, res) => {
       message: `${req.params.subtype} has no schema`
     })
   }
-  // console.log('schema', schema);
-
   const creating = await api.contacts.add_contact(await req.body, schema)
   // console.log("creating", creating);
-
+  
   if (creating.ok === true) {
+    console.log("creating ok");
 
-    // console.log(creating.data._id.toString());
-    // console.log({[req.params.subtype]: creating.data._id.toString()});
-
-    const updating = await mongo({
+    console.log(creating.data._id);
+    const updating1 = await mongo({
       db: "contacts",
       collection: req.params.type,
       action: "edit",
@@ -252,59 +275,17 @@ router.post('/:type/:id/add/:subtype', async (req, res) => {
     })
     // console.log("updating", updating);
     res.json({
-      ok: updating.acknowledged,
-      message: `${req.params.subtype} has been created and added to ${req.params.type}`
+      ok: updating1.acknowledged,
+      data: creating.data,
+      message: updating1.acknowledged ? 
+        (`${req.params.subtype} has been added to ${req.params.type}`) :
+        'Error during updating ' + req.params.type
     })
 
   } else {
-
-    console.log("no creating: ", creating.message);
-    if (creating.data._id) {
-      res.redirect('/contacts/' + req.params.type + '/add/' + req.params.subtype + '/' + creating.data._id)
-    } else {
-      res.json({
-        ok: false,
-        message: "error // ADD SUBITEM" 
-      })
-    }
-
-  }
-})
-router.get('/:type/:id/add/:subtype/:subitemid', async (req, res) => {
-  if (!req.item[req.params.subtype]) {
-    return res.json({
-      ok: false,
-      message: `${subtype} is not a property of ${req.params.type}`
-    })
-  }
-  var subitem = await mongo({
-    db: "contact",
-    collection: req.params.subtype,
-    selector: {uuid: req.params.subitemid}
-  }) 
-  if (subitem.length === 0) {
-    return res.json({
-      ok: false,
-      message: `subitem doesn't exist`
-    })
-  }
-  subitem = subitem[0]
-
-  const pushing = await mongo({
-    db: "contact",
-    collection: req.params.type,
-    action: "edit",
-    selector: {uuid: req.item._uuid},
-    updator: { $push: {[req.params.subtype]: req.params.subitemid} }
-  })
-  if (pushing.acknowledged === true) {
-    res.json({
-      ok: true
-    })
-  } else {
     res.json({
       ok: false,
-      message: ""
+      message: "errorAddSubitem: " + creating.message 
     })
   }
 })
