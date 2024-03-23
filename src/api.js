@@ -2,12 +2,8 @@ const { google } = require("googleapis");
 const axios = require('axios')
 const mongo = require('./db/mongo.js')
 const { v4: uuidv4 } = require('uuid');
-
-// const oauth2Client = new google.auth.OAuth2(
-//     "1077742480191-sel8t74e6ivuu19m9r8h3aar15fd65r1.apps.googleusercontent.com", // YOUR_CLIENT_ID
-//     "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", // YOUR_CLIENT_SECRET
-//     // "http://api.tom-zapico.com/oauth/google/callback" // YOUR_REDIRECT_URI
-//   );
+const fs = require('fs');
+const path = require('path');
 
 const api = {
     tools: {
@@ -19,49 +15,42 @@ const api = {
         return await mongo({collection: 'schemas', selector: {type: type}})
           .then(s => s.length > 0 ? s[0] : null)
       },
-      clear_items: async function (items=[], schema) {
+      clear_items: async function (items=[]) {
         console.log('clear_items()');
-        if (!schema) return items
         // console.log(schema);
         for (var item of items) {
           console.log('------------------');
           console.log('item ', items.indexOf(item)+1);
-          const _id = item._id
-          const clearing = api.tools.clear_item(item, schema)
+          // const _id = item._id
+          const clearing = await api.tools.clear_item(item)
           item = clearing.item
-      
-          // mongo update
-          if (
-            Object.keys(clearing.updator.$set).length > 0 ||
-            Object.keys(clearing.updator.$unset).length > 0 ||
-            Object.keys(clearing.updator.$push).length > 0 ||
-            Object.keys(clearing.updator.$rename).length > 0
-            ) {
-              console.log(clearing.updator);
-              await mongo({
-                db: "contacts",
-                collection: schema.type,
-                action: 'edit',
-                selector: {
-                  _id
-                },
-                updator: clearing.updator
-              })
-                .then(result => console.log(result))
-            }
         }
         return items
       },
-      clear_item: function(item={}, schema) {
+      async clear_item(item={}) {
         console.log('clear_item()');
-        if (!schema) return item
-        // console.log(schema);
-        schema = schema.fields
+
+        var schema = await api.tools.get_schema(item._type)
+        if (schema === null) {
+          console.log('no schema for ' + item._type);
+          return item
+        } else {
+          schema = schema.fields
+        }
         
         const updator = {$set: {}, $unset: {}, $rename: {}, $push: {}}
 
         // alias mapping
         for (const field in item) { 
+          if (schema[field.split('_')[0]]) {
+            const theField = field.split('_')[0]
+            const subField = field.split('_').splice(0, 1).join('_')
+            if (!item[theField]) item[theField] = {}
+            if (!updator.$set[theField]) item[theField] = {}
+            item[theField][subField] = item[field]
+            updator.$set[theField] = item[field]
+            continue
+          }
           const newField = field.replace(/^\w+_/, '')
           if (schema[newField] && item[field] !== '' && newField !== field) {
             console.log('alias mapping', field, '=>', newField);
@@ -70,7 +59,6 @@ const api = {
             updator.$unset[field] = 1
           }
         }   
-
         // add missing property
         for (const field in schema) 
           if (!item.hasOwnProperty(field) && !['_id'].includes(field)) {
@@ -85,10 +73,10 @@ const api = {
             updator.$unset[field] = 1
             delete item[field]
           } 
-
         // check fields
         for (const field in item) {
             const type = schema[field].type
+            // console.log(await item);
             if (type === "user_access") {
               if (typeof item[field] === "string") {
                 item[field] = ['zaptom.pro@gmail.com']
@@ -141,63 +129,210 @@ const api = {
                 updator.$set[field] = parseInt(item[field])
               }
             } else if (type === "email") {
-              var newEmail = item[field]
-                .replace(/\.$/gi, '')
+              var newEmail = item[field].replace(/\.$/gi, '')
               if (newEmail !== item[field]) {
                 item[field] = newEmail
                 updator.$set[field] = item[field]
               }
-            
             }
         }
+        // // rich item
+        // var POSTCODE = ""
+        // var regex = /\d{5}/
+        // if ((POSTCODE = regex.exec(item.LOCATION)) !== null) {
+        //   POSTCODE = POSTCODE[0]
+        //   console.log(POSTCODE);
+        //   if (item.POSTCODE === "") {
+        //     item.POSTCODE = POSTCODE
+        //     updator.$set[POSTCODE] = POSTCODE
+        //   }
+        //   if (item.COUNTY === '') {
+        //     const COUNTY = POSTCODE[0] + POSTCODE[1]
+        //     item.POSTCODE = COUNTY
+        //     updator.$set[COUNTY] = COUNTY
+        //   }
+        // }
+        // if (item.POSTCODE !== "" && (item.CITY === "" || item.COUNTRY === "" || item.STATE === "")) {
+        //   await axios(`https://nominatim.openstreetmap.org/search?format=json&postalcode=${POSTCODE}&addressdetails=1&limit=1`).then(r => {
+        //     if (r.length > 0) {
+        //       if (item.STATE=== "") {
+        //         item.STATE= r[0].address.state
+        //         updator.$set.STATE= r[0].address.state
+        //       }
+        //       if (item.COUNTRY === "") {
+        //         item.COUNTRY = r[0].address.country
+        //         updator.$set.COUNTRY = r[0].address.country
+        //       }
+        //       if (item.CITY === "") {
+        //         item.CITY = r[0].address.town
+        //         updator.$set.CITY = r[0].address.town
+        //       }
+        //     }
+        //   })
+        // }
 
-        return {item, updator}
+        // mongo update
+        var update
+        if (
+          Object.keys(updator.$set).length > 0 ||
+          Object.keys(updator.$unset).length > 0 ||
+          Object.keys(updator.$push).length > 0 ||
+          Object.keys(updator.$rename).length > 0
+          ) {
+            console.log(updator);
+            update = await mongo({
+              db: "contacts",
+              collection: schema.type,
+              action: 'edit',
+              selector: { _id: item._id },
+              updator
+            })
+              .then(result => console.log('updated'))
+          } else {
+            console.log('no update');
+          }
+
+        return {item, updator, update}
       },
+      async itemExist(config={}) {
+        const items = await mongo(config).then(r => r.length > 0)
+        if (items.length > 0) {
+          return {
+            ok: true,
+            data: items[0]
+          }
+        } else {
+          return {
+            ok: false
+          }
+        }
+      },
+      async makeEmail(mailConfig={}) {
+        const boundary = 'boundary_string';
+        let attachments = '';
+        
+        // Ajouter chaque fichier Google Drive en tant que pièce jointe
+        if (!mailConfig.files) mailConfig.files = []
+        // for (const filePath of mailConfig.files) {
+        //   attachments += `--${boundary}\n`;
+        //   attachments += `Content-Type: application/octet-stream;\n`;
+        //   attachments += `MIME-Version: 1.0\n`;
+        //   attachments += `Content-Disposition: attachment; filename="${path.basename(filePath)}"\n\n`;
+        //   attachments += `${fs.readFileSync(filePath).toString('base64')}\n`;
+        // }
+        // mailConfig.files.forEach(filePath => {
+        //   attachments += `--${boundary}\n`;
+        //   attachments += `Content-Type: application/octet-stream;\n`;
+        //   attachments += `MIME-Version: 1.0\n`;
+        //   attachments += `Content-Disposition: attachment; filename="${path.basename(filePath)}"\n\n`;
+        //   attachments += `${fs.readFileSync(filePath).toString('base64')}\n`;
+        // });
+        
+        // mailConfig.files.forEach((fileId) => {
+        //   attachments += `--${boundary}\n`;
+        //   attachments += 'Content-Type: message/rfc822\n\n';
+        //   attachments += `Content-Transfer-Encoding: base64\n\n`;
+        //   attachments += `Content-Disposition: attachment; filename="${fileId}"\n\n`;
+        //   attachments += `${Buffer.from(`Content-Type: application/pdf\nContent-Transfer-Encoding: base64\n\n${fs.readFileSync(fileId).toString('base64')}`).toString('base64')}\n\n`;
+        // });
+      
+        const str = [
+          `Content-Type: multipart/mixed; boundary="${boundary}"\n`,
+          'MIME-Version: 1.0\n',
+          `From: ${mailConfig.sender}\n`,
+          `To: ${mailConfig.to}\n`,
+          `Subject: ${mailConfig.subject}\n\n`,
+          `--${boundary}\n`,
+          'Content-Type: text/html; charset="UTF-8"\n',
+          'MIME-Version: 1.0\n\n',
+          `${mailConfig.html}\n\n`,
+          // `${attachments}`,
+          // `--${boundary}--`,
+        ].join('');
+
+        
+      
+        var encodedMail = Buffer.from(str).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+
+        // for (const fileId of mailConfig.files) {
+        //   const fileData = await api.google.drive.files.get(fileId);
+        //   // console.log(fileData);
+        //   // console.log(fileData.name);
+        //   // console.log(fileData.data);
+        //   // const fileBuffer = Buffer.from(fileData, 'binary');
+        //   // console.log(fileBuffer);
+        //   // const fileBase64 = fileData.toString('base64');
+        //   // console.log(fileBase64);
+        //   const strAttachment = [
+        //     `--${boundary}\n`,
+        //     `Content-Type: ${fileData.mimeType}\n`,
+        //     `MIME-Version: 1.0\n`,
+        //     `Content-Disposition: attachment; filename="test.pdf"\n\n`,
+        //   ].join('')
+        //   encodedMail += Buffer.from(strAttachment).toString('base64')
+        //     // .replace(/\+/g, '-').replace(/\//g, '_');
+        //   encodedMail += fileData.toString('base64');
+        //   // encodedMail += Buffer.from(`\n\n`).toString('base64')
+        //     // .replace(/\+/g, '-').replace(/\//g, '_');
+        // }
+        
+        return encodedMail;
+      }
     },
     contacts: {
-      add_contact: async function (contact, schema) {
-        console.log(`add_contact(${contact.PHONE}, ${schema.type})`);
+      add_contact: async function (contact) {
+        console.log(`add_contact(${contact.PHONE})`);
       
-        if (!contact) return {ok: false, message: "no contact"}
-        if (!schema) return {ok: false, message: "no schema"}
+        if (!contact) return {ok: false, message: "no contact to add"}
+
         if (!contact.PHONE || contact.PHONE === '') return {ok: false, message: 'no phone'}
-      
-        const ce = await api.contacts.contact_exist(contact, schema.type)
-        console.log('contact_exist', ce);
+        
+        contact = await api.tools.clear_item(contact).then(r => r.item)
+        const ce = await api.contacts.itemExist({
+          $or: [
+            {PHONE: contact.PHONE},
+            {NAME: contact.NAME, LOCATION: contact.LOCATION},
+          ]
+        })
+        // console.log('contact_exist', ce);
         if (ce.ok === true) {
-      
+
           console.log("contact already exist");
+          for (const f in contact) if (contact[f] === "") delete contact[f]
           const updating = await mongo({
             db: "contacts",
-            collection: schema.type,
+            collection: item._type,
             action: "edit",
             selector: {_id: ce.data._id},
             updator: {$set: contact}
           })
-          return {
+          const response = {
             ok: updating.acknowledged,
-            data: contact,
-            message: updating.acknowledged === true ? updating.modifiedCount + " contact updated" : "error update"
+            data: ce.data,
+            message: updating.acknowledged === true ? updating.modifiedCount + " " + item._type + " updated" : "error update"
           }
-        
+          console.log(response);
+          return response
+
         } else {
-      
+
+          // contact = await api.tools.clear_item(contact).then(r => r.item)
+          console.log('contact exist');
           delete contact._id
           const creating = await mongo({
             db: "contacts",
-            collection: schema.type,
+            collection: item._type,
             action: "add",
-            selector: api.tools.clear_item(contact, schema).item
+            selector: api.tools.clear_item(contact).then(r => r.item)
           })
-          // console.log(creating);
-          return {
+          const response = {
             ok: creating.acknowledged,
-            data: contact,
-            message: creating.acknowledged === true ? "contact created" : "error create"
+            data: await api.tools.clear_item(contact, schema).item,
+            message: creating.acknowledged === true ? item._type + " created" : "error create"
           }
-      
+          return response 
+
         }
-      
       },
       contact_exist: async function (contact, type='companies') {
         console.log(`contact_exist(${contact.PHONE}, ${type})`);
@@ -206,9 +341,57 @@ const api = {
           db: "contacts",
           collection: type,
           selector: {
-            $or: [{PHONE: contact.PHONE}]
+            $or: [
+              {PHONE: contact.PHONE},
+              {NAME: contact.NAME, LOCATION: contact.LOCATION}
+            ]
           }
         }).then(r => {return {ok: r.length > 0, data: r[0]}})
+      },
+      async rich (contact) {
+        console.log('rich()');
+        // console.log(contact);
+        if (!contact.LOCATION) {
+          console.log('no LOCATION');
+          return contact
+        }
+        var POSTCODE = ""
+        var regex = /\d{5}/
+        if ((POSTCODE = regex.exec(contact.LOCATION)) !== null) {
+          POSTCODE = POSTCODE[0]
+          if (contact.POSTCODE === "") {
+            contact.POSTCODE = POSTCODE
+          }
+          if (contact.COUNTY === '') {
+            contact.COUNTY = POSTCODE[0] + POSTCODE[1]
+          }
+        }
+        if (contact.POSTCODE !== "") {
+          if (contact.CITY === "" || contact.COUNTRY === "" || contact.STATE === "") {
+            await axios(`https://nominatim.openstreetmap.org/search?format=json&postalcode=${POSTCODE}&addressdetails=1&limit=1&countrycodes=fr`).then(r => {
+              r = r.data
+              if (r.length > 0) {
+                if (contact.STATE === "" && r[0].address.state) {
+                  contact.STATE = r[0].address.state || r[0].address.region
+                }
+                if (contact.COUNTRY === "" && r[0].address.country) {
+                  contact.COUNTRY = r[0].address.country
+                }
+                if (contact.CITY === "") {
+                  contact.CITY = r[0].address.city 
+                    || r[0].address.municipality
+                    || r[0].address.town 
+                    || r[0].address.village 
+                    || r[0].address.suburb 
+                    || r[0].address.city_district 
+                }
+              }
+            })
+          }
+        } else {
+          console.log('no POSTCODE');
+        }
+        return contact
       },
       companies: {
           delete_duplicate: async function (items = []) {
@@ -249,9 +432,26 @@ const api = {
       }
     },
     google: {
+        client: {},
         gmail: {
           message: {
-            send: '',
+            send: async function(mailConfig) {
+              try {
+                const raw = await api.tools.makeEmail(mailConfig)
+                // console.log(raw);
+                const res = await api.google.client.gmail.users.messages.send({
+                  userId: 'me',
+                  requestBody: {
+                    raw,
+                  },
+                });
+                console.log('Message sent:', res.data);
+                return res.data;
+              } catch (err) {
+                console.error('Error sending message:', err);
+                throw new Error('Failed to send message');
+              }
+            },
             get: '',
             tracking: {
               track: "",
@@ -261,28 +461,36 @@ const api = {
         },
         drive: {
           files: {
-            get: async function (fileId, auth) {
-              const drive = google.drive({ version: 'v3', auth: credentials });
-              const response = await drive.files.get({
-                fileId: fileId,
-                alt: 'media', // Use 'media' to get the actual file content
-              }, { responseType: 'stream' });
-              return response
-            },
-            post: '',
-            delete: '',
+            get: async function (fileId) {
+              try {
+                const res = await api.google.client.drive.files.get({
+                  fileId: fileId,
+                  alt: 'media',
+                });
+                return res.data;
+              } catch (err) {
+                console.error('Error fetching file data:', err);
+                // throw new Error('Failed to fetch file data');
+                return err
+              }
+            }
           },
           folders: {}
         },
         spreadsheet: {
-            get: async function (spreadsheetId, sheetName, auth) {
-                const googleSheets = google.sheets({ version: 'v4', auth });
-              
-                var rows = await googleSheets.spreadsheets.values.get({
-                  spreadsheetId,
-                  range: sheetName,
-                });
-                rows = rows.data.values
+            get: async function (spreadsheetId, sheetName, sheets) {
+                // const sheets = google.sheets({ version: 'v4', auth });
+                var rows
+                try {
+                  rows = await sheets.spreadsheets.values.get({
+                    spreadsheetId,
+                    range: sheetName,
+                  });
+                  rows = rows.data.values
+                } catch (error) {
+                  console.log(error);
+                  return []
+                }
               
                 const headers = rows.shift(); // Supprime le premier tableau (noms de colonnes)
               
@@ -318,21 +526,66 @@ const api = {
             event: {
                 create: async function (event, auth) {
                     const calendar = google.calendar({ version: 'v3', auth });
-                  
-                    const response = await calendar.events.insert({
-                      calendarId: 'primary',
-                      resource: event,
-                      conferenceDataVersion: 1,
-                      sendUpdates: 'all',
-                    });
+                    try {
+                      
+                      const response = await calendar.events.insert(event);
 
-                    console.log(await response);
+                      // console.log(response);
+                    
+                      // console.log('Événement créé :', response.data.htmlLink);
+                      return response.data
+
+                    } catch (error) {
+                      console.log(error);
+                      return error
+                    }
                   
-                    console.log('Événement créé :', response.data.htmlLink);
-                    return response.data
+
                   }
             }
         }
+    },
+    appointments: {
+      // clear: async function(appointment) {
+      //   const schema = await api.tools.get_schema('appointments')
+      //   for (const fields in schema.field) {
+
+      //   }
+      //   return appointment
+      // },
+      // clearAll: async function(appointment) {
+
+      // },
+      // exist: async function(appointment) {
+      //   const PHONE = appointment.PHONE
+      //   const DATE = appointment.DATE
+      //   const HOUR = appointment.PHONE
+      //   return await mongo({
+      //     db: 'storages',
+      //     collection: "appointments",
+      //     selector: {PHONE, DATE, HOUR}
+      //   }).then(r => r.length > 0)
+      // },
+    },
+    recruit: {
+      cv_proposal: function cv_proposal(selector, appliers=[]) {
+        console.log(selector);
+        if (!appliers)  return []
+        return appliers.filter(a => {
+            ok = true
+    
+            // strict
+            if (parseInt(a.COUNTY) !== parseInt(selector.COUNTY || "75")) ok = false
+            if (selector.JOB && a.JOB.toLowerCase() !== selector.JOB.toLowerCase()) ok = false
+            if (selector.DRIVER_LICENSE && a.DRIVER_LICENSE.toString().toLowerCase() === 'true' && a.DRIVER_LICENSE.toString().toLowerCase() !== selector.DRIVER_LICENSE.toString().toLowerCase()) ok = false
+            if (selector.GENDER && a.DRIVER_LICENSE.toLowerCase() !== selector.DRIVER_LICENSE.toLowerCase()) ok = false
+            
+            // flex
+            // if (selector.COUNTY && selector.COUNTY.split(',').some(c => c === a.COUNTY)) ok = false
+            
+            return ok
+            }).filter(a => a.STATUS === "Inscri").sort((a, b) => parseInt(b.SCORE || "0") - parseInt(a.SCORE || "0"))
+    }
     }
 }
 

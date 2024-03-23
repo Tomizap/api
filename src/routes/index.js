@@ -27,7 +27,6 @@ routes.post('/stripe/webhook', express.raw({type: 'application/json'}), (request
   switch (event.type) {
     case 'checkout.session.completed':
       const checkoutSessionCompleted = event.data.object;
-      // Then define and call a function to handle the event checkout.session.completed
       break;
     case 'customer.subscription.deleted':
       const customerSubscriptionDeleted = event.data.object;
@@ -37,7 +36,6 @@ routes.post('/stripe/webhook', express.raw({type: 'application/json'}), (request
       const customerSubscriptionUpdated = event.data.object;
       // Then define and call a function to handle the event customer.subscription.updated
       break;
-    // ... handle other event types
     default:
       console.log(`Unhandled event type ${event.type}`);
   }
@@ -60,6 +58,7 @@ routes.get('/stripe/subscriptions/checkout', async (req, res) => {
         mode: 'subscription',
         success_url: redirect_url,
         cancel_url: redirect_url,
+        customer_email: req.query.customer_email
     });
 
     res.redirect(303, session.url);
@@ -70,22 +69,6 @@ routes.get('/stripe/subscriptions/checkout', async (req, res) => {
 // ------------------------------------------------------------------------------------------
 routes.use(require("../middleware/auth.js"));
 
-// Interact with mongodb
-routes.post("/", async (req, res) => {
-  // console.log(req.body);
-  req.response.data = await mongo(req.body);
-  // console.log(req.response.data);
-  req.response.ok = 
-    !req.response.data || 
-    req.response.data.acknowledged || 
-    req.response.data.length > 0 ? true : false;
-  req.response.message = req.response.ok || req.response.data.acknowledged ? 
-    "operation success" : 
-    "operation fail";
-  req.response.config = req.body
-  return res.json(req.response);
-});
-
 // GET USER
 routes.get(["/me", '/auth'], (req, res) => {
   res.json({
@@ -94,6 +77,79 @@ routes.get(["/me", '/auth'], (req, res) => {
     user: req.user,
   });
 });
+
+// ----------------------- Interact with db --------------------------
+
+// Request
+// routes.post("/", async (req, res) => {
+//   // console.log(req.body);
+//   req.response.data = await mongo(req.body);
+//   // console.log(req.response.data);
+//   req.response.ok = 
+//     !req.response.data || 
+//     req.response.data.acknowledged || 
+//     req.response.data.length > 0 ? true : false;
+//   req.response.message = req.response.ok || req.response.data.acknowledged ? 
+//     "operation success" : 
+//     "operation fail";
+//   req.response.config = req.body
+//   return res.json(req.response);
+// });
+
+// req.use("/:db/:collection/", (req, res, next) => {
+
+// })
+
+// // GET
+// routes.post("/:db/:collection/", async (req, res) => {
+//   // console.log(req.body);
+//   return res.json(await mongo({
+//     db: req.params.db,
+//     collection: req.params.collection
+//   }));
+// });
+
+// // PUT
+// routes.put("/:db/:collection/", async (req, res) => {
+//   // console.log(req.body);
+//   var item = await req.body
+//   const itemExist = req.api.itemExist({
+//     db: req.params.db,
+//     collection: req.params.collection,
+//     selector: {
+//       $or: [
+//         {PHONE: contact.PHONE},
+//         {NAME: contact.NAME, LOCATION: contact.LOCATION}
+//       ]
+//     }
+//   })
+//   if (itemExist.ok === true) {
+//     item = itemExist.data
+//     const putting = await mongo({
+//       db: req.params.db,
+//       collection: req.params.collection,
+//       action: "edit",
+//       selector: {_id: item._id}
+//       updator: item
+//     })
+//     return res.json({
+//       ok: true,
+//       data: item,
+//       message: `${req.params.collection} has been modified.`
+//     });
+//   } else {
+//     return res.json({
+//       ok: true,
+//       data: item,
+//       message: `${req.params.collection} has been modified.`
+//     });
+
+//   }
+// });
+
+// POST
+
+// DELETE
 
 // ----------------------- OAuth --------------------------
 routes.use("/oauth", require("./oauth.js"));
@@ -111,7 +167,10 @@ routes.use("/download", require("./downloads.js"));
 routes.use("/stripe", require("./stripe.js"));
 
 // ----------------------- Appointments --------------------------
-// routes.use("/appointments", require("./appointments.js"));
+routes.use("/storages/appointments", require("./appointments.js"));
+
+// ----------------------- recruit --------------------------
+routes.use("/recruit", require("./recruit.js"));
 
 // ----------------------- Schemas --------------------------
 // routes.use("/schemas", require("./schemas.js"));

@@ -2,8 +2,8 @@ const { user_login } = require("../db/functions.js");
 const mongo = require("../db/mongo.js");
 const { google } = require("googleapis");
 
-GOOGLE_CLIENT_ID = "1077742480191-sel8t74e6ivuu19m9r8h3aar15fd65r1.apps.googleusercontent.com";
-GOOGLE_CLIENT_SECRET = "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";
+// GOOGLE_CLIENT_ID = "377435728989-i79vfsatmkfjic6628g0u3h85ui6jh19.apps.googleusercontent.com";
+// GOOGLE_CLIENT_SECRET = "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";
 
 async function auth(req, res, next) {
   const headers = req.headers;
@@ -48,12 +48,24 @@ async function auth(req, res, next) {
   res.cookie("token", req.response.user.auth.token);
 
   req.oauth2Client = new google.auth.OAuth2(
-    GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET
-  );
+    process.env.GOOGLE_CLIENT_ID, 
+    process.env.GOOGLE_CLIENT_SECRET,
+    "http://localhost:3000/oauth/google/token"
+    );
   await req.oauth2Client.setCredentials({
-    refresh_token: req.user.auth.google.refresh_token,
+    refresh_token: req.user.auth.google.refresh_token, 
   });
+
+  const oAuth2Client = req.oauth2Client
+
+  req.google = {
+    calendar: await google.calendar({ version: 'v3', auth: oAuth2Client }),
+    drive: await google.drive({ version: 'v3', auth: oAuth2Client }),
+    sheets: await google.sheets({ version: 'v4', auth: oAuth2Client }),
+    drive: await google.drive({ version: 'v3', auth: oAuth2Client }),
+    gmail: await google.gmail({ version: 'v1', auth: oAuth2Client }),
+  }
+  req.api.google.client = req.google
 
   next();
 }
