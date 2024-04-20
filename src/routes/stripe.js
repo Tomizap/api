@@ -5,13 +5,13 @@ const router = express.Router();
 
 router.use(async (req, res, next) => {
     // return res.send(req.user.auth.stripe.token)
-    if (!req.headers.stripe_secret_key) {
-        return res.json({
-            ok: false,
-            message: 'missing stripe_secret_key'
-        })
-    }
-    req.stripe = await require('stripe')(req.headers.stripe_secret_key);
+    // if (!req.headers.stripe_secret_key) {
+    //     return res.json({
+    //         ok: false,
+    //         message: 'missing stripe_secret_key'
+    //     })
+    // }
+    req.stripe = await req.api.stripe.client;
     // return res.json(req.user.stripe.subscriptions)
     next()
 })
