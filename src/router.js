@@ -5,7 +5,7 @@ const {api} = require('@tomizap/tools')
 
 router.use((req, res, next) => {
   req.api = api
-  return res.json(process.env.MONGO_URI)
+  // return res.json(process.env.MONGO_URI)
   req.api.init({
     keys: {
         MONGO_URI: process.env.MONGO_URI,
