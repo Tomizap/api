@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-// const mongo = require("../db/mongo.js");
 
 
 router.get('/cv_proposal', async (req, res) => {

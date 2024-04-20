@@ -1,20 +1,36 @@
 const express = require("express");
-// const mongo = require("../db/mongo");
+// const {mongo} = require("@tomizap/tools");
 const router = express.Router();
 // const stripe = require('stripe')('sk_test_51HuID2Loq0Tuxdi9IYWFKRZWcTzEEize0kXOCrdEmPw7pVs6r7BPVAOY1MP4H5YNByq7CGv8CODyjExaTjabcBuv00WePDPJuU');
 
 router.use(async (req, res, next) => {
     // return res.send(req.user.auth.stripe.token)
-    req.stripe = await require('stripe')(req.query.stripe_api || req.user.auth.stripe.token);
-    req.user.stripe.customers = await req.stripe.customers.list({
-        limit: req.query.limit || 99,
-        email: req.user.email
-        }).then(customers => customers.data)
+    if (!req.headers.stripe_secret_key) {
+        return res.json({
+            ok: false,
+            message: 'missing stripe_secret_key'
+        })
+    }
+    req.stripe = await require('stripe')(req.headers.stripe_secret_key);
     // return res.json(req.user.stripe.subscriptions)
     next()
 })
 
-router.get('/me', (req, res) => {res.json({ok:true, data: req.user.stripe.customers})})
+router.get('/me', async (req, res) => {
+    var customer = {}
+    if (req.user.auth.stripe.customer_id !== "") {
+        customer = await req.stripe.customers.retrieve(req.user.auth.stripe.customer_id)
+    } else {
+        const customers = await req.stripe.customers.list({
+            email: req.user.email
+            }).then(customers => customers.data)
+        customer = customers[0]
+    }
+    res.json({
+        ok: true,
+        data: customer
+    })
+})
 
 router.post('/invit-customer', async (req, res) => {
     customer_email = req.body.customer_email
@@ -30,28 +46,34 @@ router.post('/invit-customer', async (req, res) => {
 router.get('/:type', async (req, res) => {
     res.json(await req.stripe[req.params.type].list({
         limit: req.query.limit || 99,
+        status: req.query.status
       }))
 })
 
 router.get('/me/:type', async (req, res) => {
-    res.json(await req.stripe[req.params.type].list({
+    const items =  await req.stripe[req.params.type].list({
         limit: req.query.limit || 99,
-        customer: req.user.stripe.customers[0].id
-    }).then(r => r.data))
+        customer: req.user.auth.stripe.customer_id
+    }).then(r => r.data.filter(item => item.customer_email === req.user.email || item.customer === req.user.auth.stripe.customer_id))
+    res.json({
+        ok: items.length > 0 ? true : false,
+        message: `${items.length} ${req.params.type} found`,
+        data: items
+    })
 })
-router.post('/me/:type', async (req, res) => {
-    res.json(await req.stripe[req.params.type].create(req.body))
-})
-router.post('/me/:type/:subtype', async (req, res) => {
-    res.json(await req.stripe[req.params.type][req.params.subtype].create(req.body))
-})
-router.get('/me/subscriptions/:status', async (req, res) => {
-    res.json(await req.stripe.subscriptions.list({
-        limit: req.query.limit || 99,
-        customer: req.user.stripe.customers[0].id,
-        status: req.params.status
-    }).then(r => r.data))
-})
+// router.post('/me/:type', async (req, res) => {
+//     res.json(await req.stripe[req.params.type].create(req.body))
+// })
+// router.post('/me/:type/:subtype', async (req, res) => {
+//     res.json(await req.stripe[req.params.type][req.params.subtype].create(req.body))
+// })
+// router.get('/me/subscriptions/:status', async (req, res) => {
+//     res.json(await req.stripe.subscriptions.list({
+//         limit: req.query.limit || 99,
+//         customer: req.user.auth.stripe.customer_id,
+//         status: req.params.status
+//     }).then(r => r.data))
+// })
 router.use('/me/subscriptions/:id', async (req, res) => {
     req.stripe.subscription = await stripe.subscriptions.retrieve(req.params.id);
 })

@@ -3,7 +3,7 @@ const router = express.Router();
 
 // const { google } = require("googleapis");
 const nodemailer = require("nodemailer");
-// const mongo = require("../db/mongo.js");
+// const {mongo} = require("@tomizap/tools");
 // const axios = require("axios");
 
 GOOGLE_CLIENT_ID =

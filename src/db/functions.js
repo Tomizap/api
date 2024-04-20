@@ -1,5 +1,5 @@
 const { get } = require("mongoose");
-const mongo = require("./mongo.js");
+const {mongo} = require("@tomizap/tools");
 const userSchema = require("./schemas/users.js");
 // const { getCababilitiesByRole } = require("./capabilities.js");
 

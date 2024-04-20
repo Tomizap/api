@@ -1,6 +1,6 @@
 const express = require("express");
 const routes = express.Router();
-const mongo = require("../db/mongo.js");
+// const {mongo} = require("@tomizap/tools");
 const stripe = require('stripe')('sk_test_51HuID2Loq0Tuxdi9IYWFKRZWcTzEEize0kXOCrdEmPw7pVs6r7BPVAOY1MP4H5YNByq7CGv8CODyjExaTjabcBuv00WePDPJuU');
 
 // ----------------------- HOME----------------------- 
@@ -64,6 +64,21 @@ routes.get('/stripe/subscriptions/checkout', async (req, res) => {
     res.redirect(303, session.url);
 });
 
+routes.post('/login', async (req, res) => {
+  const email = req.body.email || req.headers.email
+  const password = req.body.password
+  const userExist = await req.api.item.exist({selector: {email, 'auth.password': password}})
+  console.log(userExist);
+  response = userExist
+  if (userExist.ok === true) {
+    response.message = "logged in !"
+  } else {
+    response.message = "authentification failed"
+  }
+  res.json(response)
+  // req.da
+})
+
 // ------------------------------------------------------------------------------------------
 // -------------------------------- AUTHENTIFICATE REQUEST ----------------------------------
 // ------------------------------------------------------------------------------------------
@@ -77,79 +92,6 @@ routes.get(["/me", '/auth'], (req, res) => {
     user: req.user,
   });
 });
-
-// ----------------------- Interact with db --------------------------
-
-// Request
-// routes.post("/", async (req, res) => {
-//   // console.log(req.body);
-//   req.response.data = await mongo(req.body);
-//   // console.log(req.response.data);
-//   req.response.ok = 
-//     !req.response.data || 
-//     req.response.data.acknowledged || 
-//     req.response.data.length > 0 ? true : false;
-//   req.response.message = req.response.ok || req.response.data.acknowledged ? 
-//     "operation success" : 
-//     "operation fail";
-//   req.response.config = req.body
-//   return res.json(req.response);
-// });
-
-// req.use("/:db/:collection/", (req, res, next) => {
-
-// })
-
-// // GET
-// routes.post("/:db/:collection/", async (req, res) => {
-//   // console.log(req.body);
-//   return res.json(await mongo({
-//     db: req.params.db,
-//     collection: req.params.collection
-//   }));
-// });
-
-// // PUT
-// routes.put("/:db/:collection/", async (req, res) => {
-//   // console.log(req.body);
-//   var item = await req.body
-//   const itemExist = req.api.itemExist({
-//     db: req.params.db,
-//     collection: req.params.collection,
-//     selector: {
-//       $or: [
-//         {PHONE: contact.PHONE},
-//         {NAME: contact.NAME, LOCATION: contact.LOCATION}
-//       ]
-//     }
-//   })
-//   if (itemExist.ok === true) {
-//     item = itemExist.data
-//     const putting = await mongo({
-//       db: req.params.db,
-//       collection: req.params.collection,
-//       action: "edit",
-//       selector: {_id: item._id}
-//       updator: item
-//     })
-//     return res.json({
-//       ok: true,
-//       data: item,
-//       message: `${req.params.collection} has been modified.`
-//     });
-//   } else {
-//     return res.json({
-//       ok: true,
-//       data: item,
-//       message: `${req.params.collection} has been modified.`
-//     });
-
-//   }
-// });
-
-// POST
-
-// DELETE
 
 // ----------------------- OAuth --------------------------
 routes.use("/oauth", require("./oauth.js"));
@@ -179,6 +121,14 @@ routes.use("/recruit", require("./recruit.js"));
 // routes.use("/automnations", require("./automnations.js"));
 
 // ----------------------- Contacts --------------------------
-routes.use("/contacts", require("./contacts.js"));
+// routes.use("/contacts", require("./contacts.js"));
+
+// ----------------------- CRUD --------------------------
+routes.use("/crud", require("./crud.js"));
+
+routes.use(async (req, res) => {
+  // console.log('tests');
+  res.json(await req.response)
+})
 
 module.exports = routes;

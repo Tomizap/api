@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const mongo = require("../db/mongo.js");
+const {mongo} = require("@tomizap/tools");
 const automnationSchema = require("../db/schemas/automnations.js");
 const { ObjectId } = require("mongodb");
 const { google } = require("googleapis");

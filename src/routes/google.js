@@ -19,45 +19,9 @@ router.get('/spreadsheet/:id/:sheetname', async (req, res) => {
 
 // RICH CONTACTS
 router.get('/spreadsheet/:id/:sheetname/rich', async (req, res) => {
-  const data = await req.api.google.spreadsheet.get(req.params.id, req.params.sheetname, req.google.sheets);
-  const columns = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"]
-  const fields = Object.keys(data[0])
-  const columMapping = {}
-  for (const field of fields) {
-    columMapping[field] = columns[fields.indexOf(field)]
-  }
-  for await (var item of data) {
-    console.log('item', data.indexOf(item));
-    const rowIndex = data.indexOf(item)+2
-    console.log(rowIndex);
-    const itemStringified = JSON.stringify(item)
-    item = await req.api.contacts.rich(item)
-    if (JSON.stringify(item) === itemStringified) {
-      console.log('no changes');
-      continue
-    } 
-    // console.log("itemStringified", itemStringified);
-    // console.log("item", item);
-    const range = req.params.sheetname + "!A" + (rowIndex)
-    try {
-      await req.google.sheets.spreadsheets.values.update({
-        spreadsheetId: process.env.GOOGLE_FILE_BDD_ID,
-        range,
-        valueInputOption: 'RAW',
-        requestBody: {
-          values: [Object.values(item)],
-        },
-      });
-      console.log(`row ${rowIndex} updated !`);
-    } catch (error) {
-      console.log(error);
-      continue
-    }
-    // break
-  }
   res.json({
     ok: true,
-    data
+    data: await req.api.google.spreadsheet.rich(req.params.id, req.params.sheetname, req.google.sheets)
   })
 })
 
