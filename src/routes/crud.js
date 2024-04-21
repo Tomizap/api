@@ -65,11 +65,9 @@ router.post('/:db/:type', async (req, res) => {
 
 // FOCUS
 router.use('/:db/:type/:id', async (req, res, next) => {
-  const getting = await req.api.mongo.exec({
-    db: 'contacts',
-    collection: req.params.type,
-    selector: { _id: req.params.id }
-  })
+  req.mongoConfig.action = 'get'
+  req.mongoConfig.selector = { _id: req.params.id }
+  const getting = await req.api.mongo.exec(req.mongoConfig)
   if (getting.length > 0) {
     req.item = getting[0]
   } else {
