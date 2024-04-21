@@ -9,7 +9,7 @@ routes.get("/", (req, res) => res.send("Bienvenue sur l'api"));
 // ----------------------- REGISTER----------------------- 
 
 // ----------------------- STRIPE --------------------------
-routes.post('/stripe/webhook', express.raw({type: 'application/json'}), (request, response) => {
+routes.post('/stripe/webhook', express.raw({ type: 'application/json' }), (request, response) => {
   const sig = request.headers['stripe-signature'];
 
   let event;
@@ -44,30 +44,30 @@ routes.post('/stripe/webhook', express.raw({type: 'application/json'}), (request
   response.send();
 });
 routes.get('/stripe/subscriptions/checkout', async (req, res) => {
-    const redirect_url = req.query.redirect_url || (`https://${req.hostname}${req.originalUrl}`)
-    const price = req.query.price || 'price_1Or7VELoq0Tuxdi9J7MUe3tf'
-    console.log(redirect_url);
-    const session = await stripe.checkout.sessions.create({
-        line_items: [
-        {
-            // Provide the exact Price ID (for example, pr_1234) of the product you want to sell
-            price,
-            quantity: 1,
-        },
-        ],
-        mode: 'subscription',
-        success_url: redirect_url,
-        cancel_url: redirect_url,
-        customer_email: req.query.customer_email
-    });
+  const redirect_url = req.query.redirect_url || (`https://${req.hostname}${req.originalUrl}`)
+  const price = req.query.price || 'price_1Or7VELoq0Tuxdi9J7MUe3tf'
+  console.log(redirect_url);
+  const session = await stripe.checkout.sessions.create({
+    line_items: [
+      {
+        // Provide the exact Price ID (for example, pr_1234) of the product you want to sell
+        price,
+        quantity: 1,
+      },
+    ],
+    mode: 'subscription',
+    success_url: redirect_url,
+    cancel_url: redirect_url,
+    customer_email: req.query.customer_email
+  });
 
-    res.redirect(303, session.url);
+  res.redirect(303, session.url);
 });
 
 routes.post('/login', async (req, res) => {
   const email = req.body.email || req.headers.email
   const password = req.body.password
-  const userExist = await req.api.item.exist({selector: {email, 'auth.password': password}})
+  const userExist = await req.api.item.exist({ selector: { email, 'auth.password': password } })
   console.log(userExist);
   response = userExist
   if (userExist.ok === true) {
@@ -126,9 +126,9 @@ routes.use("/recruit", require("./recruit.js"));
 // ----------------------- CRUD --------------------------
 routes.use("/crud", require("./crud.js"));
 
-routes.use(async (req, res) => {
-  // console.log('tests');
-  res.json(await req.response)
-})
+// routes.use(async (req, res) => {
+//   // console.log('tests');
+//   res.json(await req.response)
+// })
 
 module.exports = routes;
