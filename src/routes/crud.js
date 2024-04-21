@@ -38,7 +38,8 @@ router.use("/:db/:type", async (req, res, next) => {
 });
 // GET
 router.get('/:db/:type', async (req, res) => {
-  // req.mongoConfig.selector = req.query
+  req.mongoConfig.selector = req.query
+  // console.log(req.mongoConfig);
   const items = await req.api.mongo.exec(req.mongoConfig)
   console.log("items", items);
   return res.json({
