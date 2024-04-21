@@ -17,7 +17,8 @@ router.use("/:db/:type", async (req, res, next) => {
     db: req.params.db,
     collection: req.params.type,
     limit: req.query.limit,
-    page: req.query.page
+    page: req.query.page,
+    selector: { _user_access: [req.user.email] }
   }
   delete req.query.limit
   delete req.query.page
@@ -57,6 +58,7 @@ router.post('/:db/:type', async (req, res) => {
   const item = await req.body
   if (!item._db) item._db = req.params.db
   if (!item._type) item._type = req.params.type
+  item._user_access = [req.user.email]
   // return res.json("salut")
   res.json(await req.api.item.add(item))
 })
@@ -66,7 +68,7 @@ router.post('/:db/:type', async (req, res) => {
 // FOCUS
 router.use('/:db/:type/:id', async (req, res, next) => {
   req.mongoConfig.action = 'get'
-  req.mongoConfig.selector = { _id: req.params.id }
+  req.mongoConfig.selector._id = req.params.id
   const getting = await req.api.mongo.exec(req.mongoConfig)
   if (getting.length > 0) {
     req.item = getting[0]
