@@ -53,8 +53,11 @@ return res.json({
 })
 // POST
 router.post('/:db/:type', async (req, res) => {
-const contact = await req.body
-res.json(await req.api.items.add(contact))
+    const item = await req.body
+    if (!item._db) item._db = req.params.db
+    if (!item._type) item._type = req.params.type
+    // return res.json("salut")
+    res.json(await req.api.item.add(item))
 })
 
 // ---------------------- ITEM --------------------------
