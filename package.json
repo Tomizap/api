@@ -11,7 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@tomizap/tools": "^1.1.145",
+    "@tomizap/tools": "^1.1.146",
     "axios": "^1.6.1",
     "body-parser": "^1.20.2",
     "cookie-parser": "^1.4.6",

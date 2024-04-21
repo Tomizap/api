@@ -89,8 +89,10 @@ router.get('/:db/:type/:id', (req, res) => {
 	})
 })
 // DELETE
-router.delete('/:db/:type/:id', (req, res) => {
-
+router.delete('/:db/:type/:id', async (req, res) => {
+	req.mongoConfig.action = "delete"
+	const deleting = await req.api.mongo.exec(req.mongoConfig)
+	res.json(deleting)
 })
 // EDIT
 router.use('/:db/:type/:id', async (req, res) => {
