@@ -3,10 +3,10 @@ async function auth(req, res, next) {
   // const email = await (req.query.email || headers.email || req.cookies.email)
   const token = await (req.query.token || headers.token || req.cookies.token)
   var user = {}
-  
+
   const quickAuth = await req.api.mongo.exec({
     collection: "users",
-    selector: {['auth.token']: token}
+    selector: { ['auth.token']: token }
   })
 
   if (!quickAuth) return res.json({
@@ -37,7 +37,7 @@ async function auth(req, res, next) {
   req.response.user = user;
   req.user = user;
   req.response.ok = true;
-  
+
   res.cookie("email", req.user.email);
   res.cookie("token", req.user.auth.token);
 
@@ -45,12 +45,12 @@ async function auth(req, res, next) {
   delete req.query.password
 
   await req.api.init({
-      keys: {
-          GOOGLE_REFRESH_TOKEN: req.user.auth.google.refresh_token, 
-      }
+    keys: {
+      GOOGLE_REFRESH_TOKEN: req.user.auth.google.refresh_token,
+    }
   })
 
-  console.log('auth ok');
+  // console.log('auth ok');
 
   next();
 }
